@@ -1,5 +1,5 @@
-// TP9 : Jenkinsfile déclaratif à compléter (à placer à la racine du dépôt contact-api du TP8).
-// Plugins nécessaires : Pipeline, Git, Docker Pipeline, JUnit, Credentials Binding, Workspace Cleanup.
+// TP9 : Jenkinsfile déclaratif de contact-api (partie 2 : agents Docker, parallélisme, JUnit)
+// Plugins : Pipeline, Git, Docker Pipeline, JUnit, Credentials Binding, Workspace Cleanup, Timestamper.
 
 pipeline {
   agent any
@@ -8,14 +8,12 @@ pipeline {
     timestamps()
     timeout(time: 20, unit: 'MINUTES')
     buildDiscarder(logRotator(numToKeepStr: '10'))
-    // TODO (partie 2) : interdire les builds concurrents sur la même branche
+    disableConcurrentBuilds() // un seul build à la fois sur la même branche
   }
 
   environment {
     IMAGE_NAME = 'amal878/contact-api'
-    // TODO (partie 3) : SHORT_SHA = 7 premiers caractères de GIT_COMMIT
-    //   astuce : à calculer dans un bloc script { env.SHORT_SHA = ... } car GIT_COMMIT
-    //   n'est connu qu'après le checkout
+    // TODO (partie 3) : SHORT_SHA calculé après le checkout
   }
 
   stages {
@@ -26,34 +24,44 @@ pipeline {
     }
 
     stage('Install') {
-      // TODO (partie 2) : exécuter ce stage dans un agent Docker node:24-alpine
-      //   agent { docker { image 'node:24-alpine'; reuseNode true } }
+      // Node.js vient de l'image Docker, plus de la VM : build reproductible.
+      // reuseNode true : même workspace que le reste du pipeline (node_modules conservé).
+      // HOME=/tmp : le conteneur tourne avec l'utilisateur jenkins, qui n'a pas de HOME dans l'image.
+      agent { docker { image 'node:24-alpine'; args '-e HOME=/tmp'; reuseNode true } }
       steps {
+        sh 'node --version && npm --version'
         sh 'npm ci'
       }
     }
 
     stage('Quality') {
-      // TODO (partie 2) : exécuter "Lint" et "Unit tests" en parallèle (bloc parallel)
-      steps {
-        sh 'npm run lint'
-        sh 'npm test'
+      parallel {
+        stage('Lint') {
+          agent { docker { image 'node:24-alpine'; args '-e HOME=/tmp'; reuseNode true } }
+          steps {
+            sh 'npm run lint'
+          }
+        }
+        stage('Unit tests') {
+          agent { docker { image 'node:24-alpine'; args '-e HOME=/tmp'; reuseNode true } }
+          steps {
+            // rapport JUnit lu par Jenkins (onglet Tests)
+            sh 'npm run test:ci'
+          }
+        }
       }
     }
 
     stage('Build image') {
       steps {
-        // TODO (partie 3) : construire ${IMAGE_NAME}:${SHORT_SHA} et ajouter le label
-        //   org.opencontainers.image.revision=${GIT_COMMIT}
+        // TODO (partie 3) : docker build ${IMAGE_NAME}:${SHORT_SHA}
         echo 'TODO docker build'
       }
     }
 
     stage('Push') {
-      // TODO (partie 3) : uniquement sur la branche main (when { branch 'main' })
+      // TODO (partie 3) : uniquement sur main
       steps {
-        // TODO (partie 3) : withCredentials([usernamePassword(credentialsId: 'dockerhub', ...)])
-        //   puis docker login --password-stdin, docker push du tag SHORT_SHA et du tag latest-main
         echo 'TODO docker push'
       }
     }
@@ -61,11 +69,9 @@ pipeline {
 
   post {
     always {
-      // TODO (partie 2) : publier les résultats JUnit (junit 'reports/*.xml')
+      // allowEmptyResults : pas d'erreur supplémentaire si le build échoue avant les tests
+      junit testResults: 'reports/*.xml', allowEmptyResults: true
       echo "Build ${currentBuild.fullDisplayName} terminé : ${currentBuild.currentResult}"
-    }
-    success {
-      echo 'TODO : archiver un fichier image.txt contenant le nom complet de l image (archiveArtifacts)'
     }
     failure {
       echo 'Le pipeline a échoué : consultez les logs du stage en rouge.'

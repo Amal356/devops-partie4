@@ -43,7 +43,6 @@ export function createMemoryContactRepository() {
       return [...items]
         .reverse()
         .slice(offset, offset + limit)
-        // eslint-disable-next-line no-unused-vars
         .map(({ email, ...publicFields }) => publicFields);
     },
   };
