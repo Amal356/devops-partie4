@@ -25,7 +25,7 @@ export function createApp({ contactRepository }) {
   // API4 / API6 : 5 requêtes par minute et par IP, uniquement sur /api/contact
   const contactLimiter = rateLimit({
     windowMs: 60 * 1000,
-    limit: 5,
+    limit: Number(process.env.RATE_LIMIT_MAX ?? 5), // configurable, 5 req/min par défaut
     standardHeaders: "draft-7", // en-têtes RateLimit-* standard
     legacyHeaders: false,       // pas d'anciens en-têtes X-RateLimit-*
     message: { error: "TOO_MANY_REQUESTS" },
