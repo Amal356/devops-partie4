@@ -1,0 +1,16 @@
+# Base PostgreSQL pour le développement et les tests d'intégration.
+name: contact-api
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${PGUSER:-contact}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-contact}
+      POSTGRES_DB: ${PGDATABASE:-contact}
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      retries: 10
