@@ -18,7 +18,7 @@ describe("POST /api/contact", () => {
 
   it("accepte un message valide (201)", async () => {
     const res = await request(app).post("/api/contact").send(valid);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ status: "received" });
     expect(res.body.id).toBeDefined();
     expect(repo.items).toHaveLength(1);
