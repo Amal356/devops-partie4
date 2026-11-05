@@ -113,6 +113,8 @@ pipeline {
       echo 'Le pipeline a échoué : consultez les logs du stage en rouge.'
     }
     cleanup {
+      // l'image est sur Docker Hub (ou inutile hors main) : on libère le disque de la VM
+      sh 'docker image rm "$IMAGE_NAME:$SHORT_SHA" "$IMAGE_NAME:latest-main" 2>/dev/null || true'
       cleanWs()
     }
   }
