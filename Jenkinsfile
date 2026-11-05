@@ -64,9 +64,7 @@ pipeline {
     }
 
     // TP10 partie 6 : shift left dans Jenkins. Un seul scanner qui échoue = pipeline rouge.
-    // failFast : si un scanner échoue, on n'attend pas les autres.
     stage('Security') {
-      failFast true
       parallel {
         stage('Secrets (Gitleaks)') {
           steps {
