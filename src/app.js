@@ -32,6 +32,9 @@ export function createApp({ contactRepository }) {
   });
   app.use("/api/contact", contactLimiter, contactRouter({ contactRepository }));
 
+  // TP10 : faille volontaire (XSS) pour la démo du quality gate
+  app.get("/hello", (req, res) => res.send("<h1>Bonjour " + req.query.name + "</h1>"));
+
   // Route 404 au format JSON pour toutes les autres URL
   app.use((req, res) => res.status(404).json({ error: "NOT_FOUND" }));
 
