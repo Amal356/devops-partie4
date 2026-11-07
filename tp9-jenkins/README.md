@@ -5,7 +5,8 @@
 
 Objectif : décrire toute la chaîne d'intégration de l'API `contact-api` (TP8) dans un **`Jenkinsfile` déclaratif** versionné avec le code : installation et tests dans des **agents Docker**, étapes **en parallèle**, **rapport JUnit**, image Docker **taguée au SHA Git** et poussée sur Docker Hub avec des **credentials masqués**, puis un **pipeline Multibranch** qui construit chaque branche et chaque Pull Request.
 
-Le `Jenkinsfile` final est à la racine du dépôt : [`../Jenkinsfile`](../Jenkinsfile).
+Le `Jenkinsfile` de fin de TP9 est conservé dans ce dossier : [`Jenkinsfile`](Jenkinsfile).
+Depuis le TP10, celui de la racine du dépôt ([`../Jenkinsfile`](../Jenkinsfile)) contient en plus les stages de sécurité `Security` (Gitleaks, Semgrep, npm audit) et `Image scan` (Trivy) : voir le [README du TP10](../tp10-devsecops/README.md#8-partie-6--quality-gates-de-sécurité-dans-jenkins).
 
 ---
 
@@ -308,7 +309,7 @@ Points complémentaires :
 | Nœud `contrôleur` **déconnecté**, builds bloqués en file d'attente | disque de la VM plein à **99 %** (808 Mo libres) : Jenkins coupe le nœud sous le seuil d'espace libre | `docker builder prune -af` + `docker image prune -af` (**7,6 Go** libérés, 12 Go libres) ; redémarrage de Jenkins ; suppression de l'image locale en fin de build dans le `Jenkinsfile` |
 | Job Multibranch créé pendant que le disque était plein | builds `main #1` et `PR-1 #1` restés bloqués (`Unexpected exception in CPS VM thread`) | suppression puis recréation du job une fois le disque libéré |
 | Pas de job `feature/rate-limit-config` | stratégie par défaut *Exclude branches that are also filed as PRs* | *Discover branches : All branches* |
-| `npm warn … 11 vulnerabilities` pendant `npm ci` | dépendances de développement du starter | constat conservé pour le **TP10** (Shift Left : SCA avec Trivy / audit des dépendances) |
+| `npm warn … 11 vulnerabilities` pendant `npm ci` | dépendances de développement du starter | traité au **TP10** : `npm audit --omit=dev` bloque le pipeline à partir de *high* (elles sont toutes dans les outils de développement) ; une vraie faille de `zod` a ensuite été bloquée puis corrigée (`zod` 4.6.7) |
 
 ## Sécurité
 
