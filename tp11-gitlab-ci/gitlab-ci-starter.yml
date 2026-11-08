@@ -1,0 +1,61 @@
+# TP11 : pipeline GitLab à compléter (à placer à la racine du projet contact-api sur gitlab.com).
+
+stages:
+  - install
+  - test
+  - security
+  - build
+  - push
+
+default:
+  image: node:24-alpine
+  tags: [lab] # les jobs s'exécutent sur VOTRE runner (VM de lab)
+  # TODO (partie 3) : interrompre un pipeline devenu obsolète (interruptible: true)
+
+variables:
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+# TODO (partie 4) : inclure les templates de sécurité fournis par GitLab
+# include:
+#   - template: Jobs/SAST.gitlab-ci.yml
+#   - template: Jobs/Secret-Detection.gitlab-ci.yml
+
+install:
+  stage: install
+  script:
+    - npm ci
+  # TODO (partie 3) : cache de .npm/ avec une clé basée sur package-lock.json (cache:key:files)
+  # TODO (partie 3) : transmettre node_modules/ aux jobs suivants (artifacts, expire_in: 1 hour)
+
+unit-tests:
+  stage: test
+  needs: [install]
+  script:
+    - npx vitest run --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml
+  # TODO (partie 3) : publier reports/junit.xml comme rapport JUnit (artifacts:reports:junit, when: always)
+
+npm-audit:
+  stage: security
+  needs: [install]
+  script:
+    - npm audit --audit-level=high
+  # TODO (partie 4) : faut-il autoriser l'échec (allow_failure) ? Justifiez votre choix.
+
+build-image:
+  stage: build
+  image: docker:28
+  needs: [unit-tests, npm-audit]
+  script:
+    # Variables prédéfinies : CI_REGISTRY, CI_REGISTRY_IMAGE, CI_COMMIT_SHORT_SHA, CI_JOB_TOKEN...
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
+  # TODO (partie 3) : ne lancer ce job que pour les merge requests et la branche par défaut (rules)
+
+push-image:
+  stage: push
+  image: docker:28
+  needs: [build-image]
+  script:
+    # TODO (partie 3) : docker login avec CI_REGISTRY_USER / CI_REGISTRY_PASSWORD (--password-stdin)
+    #                   puis docker push de l'image tagguée avec CI_COMMIT_SHORT_SHA
+    - echo "TODO push"
+  # TODO (partie 3) : uniquement sur la branche par défaut ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH)

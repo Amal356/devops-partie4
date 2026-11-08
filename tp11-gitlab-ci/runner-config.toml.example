@@ -1,0 +1,17 @@
+# TP11 partie 2 : extrait de /etc/gitlab-runner/config.toml après l'enregistrement.
+# Seules les lignes commentées « À VÉRIFIER » sont à adapter ; le reste est généré par gitlab-runner register.
+concurrent = 2
+
+[[runners]]
+  name = "lab-runner"
+  url = "https://gitlab.com"
+  token = "glrt-XXXXXXXX" # jeton d'authentification : NE JAMAIS le versionner
+  executor = "docker"
+  [runners.docker]
+    image = "node:24-alpine"
+    privileged = false # À VÉRIFIER : ne jamais passer à true sans raison
+    # Monter le socket Docker permet aux jobs de lancer « docker build ».
+    # ⚠️ C'est équivalent à donner root sur la VM à tout job : acceptable dans un lab dédié,
+    # à remplacer par BuildKit rootless, Buildah ou Kaniko en production (défi du TP).
+    volumes = ["/cache", "/var/run/docker.sock:/var/run/docker.sock"]
+    pull_policy = ["if-not-present"]

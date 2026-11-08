@@ -1,0 +1,94 @@
+# TP11 : pipeline GitLab de contact-api (version finale, TODO des parties 3 et 4 complétés).
+# ⚠️ Écrit et relu, mais NON EXÉCUTÉ : gitlab.com refuse de lancer tout pipeline sans vérification
+# d'identité par carte bancaire, même sur un runner auto-hébergé (voir README).
+
+stages:
+  - install
+  - test
+  - security
+  - build
+  - push
+
+# Un seul pipeline par changement : pipeline de MR si une MR est ouverte, sinon pipeline de branche.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+default:
+  image: node:24-alpine
+  tags: [lab]            # les jobs s'exécutent sur NOTRE runner (VM de lab)
+  interruptible: true    # partie 3 : un nouveau commit annule le pipeline devenu obsolète
+
+variables:
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+# Partie 4 : templates de sécurité fournis par GitLab (gratuits ; rapports JSON en artefacts)
+include:
+  - template: Jobs/SAST.gitlab-ci.yml               # job semgrep-sast
+  - template: Jobs/Secret-Detection.gitlab-ci.yml   # job secret_detection (Gitleaks)
+
+install:
+  stage: install
+  script:
+    - npm ci
+  cache:                              # partie 3 : réutilisé entre pipelines
+    key:
+      files: [package-lock.json]      # nouvelle clé seulement si les dépendances changent
+    paths: [.npm/]
+  artifacts:                          # partie 3 : transmis aux jobs suivants du même pipeline
+    paths: [node_modules/]
+    expire_in: 1 hour
+
+unit-tests:
+  stage: test
+  needs: [install]
+  script:
+    # tests/integration exclus : ils ont besoin d'une base PostgreSQL (lancés à part, TP8)
+    - npx vitest run tests --exclude "tests/integration/**" --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml
+  artifacts:                          # partie 3 : onglet « Tests » du pipeline et de la MR
+    when: always                      # même (surtout) quand un test échoue
+    reports:
+      junit: reports/junit.xml
+
+# Partie 3 : variable CI/CD masquée et protégée (Settings → CI/CD → Variables)
+demo-token:
+  stage: test
+  needs: []
+  script:
+    - echo "longueur: ${#DEMO_TOKEN}"   # jamais la valeur ; vide (0) sur une branche non protégée
+
+npm-audit:
+  stage: security
+  needs: [install]
+  script:
+    # --omit=dev : seules les dépendances livrées dans l'image comptent (vitest, eslint… ne partent pas en production)
+    - npm audit --omit=dev --audit-level=high
+  # Partie 4 : PAS d'allow_failure. Une dépendance de production vulnérable (high+) doit bloquer
+  # la construction de l'image, comme dans Jenkins au TP10 (zod < 4.6.6 bloqué).
+  allow_failure: false
+
+build-image:
+  stage: build
+  image: docker:28
+  needs: [unit-tests, npm-audit]
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
+  rules:                              # partie 3 : MR et branche par défaut uniquement
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+push-image:
+  stage: push
+  image: docker:28
+  needs: [build-image]
+  script:
+    # Identifiants ÉPHÉMÈRES fournis par GitLab pour ce job : aucun secret à stocker
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+  after_script:
+    - docker logout "$CI_REGISTRY" || true
+  rules:                              # partie 3 : jamais depuis une MR ou une autre branche
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

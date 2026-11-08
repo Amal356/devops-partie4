@@ -7,8 +7,8 @@
 |----|-------|--------|---------|------|
 | TP9 | Pipeline as Code avec Jenkins | Jenkins 2.580.1, agents Docker, JUnit, Credentials, Multibranch, Docker Hub | [tp9-jenkins](tp9-jenkins) | ✅ |
 | TP10 | DevSecOps « Shift Left » | Gitleaks, pre-commit, Semgrep, CodeQL, npm audit, Trivy, Dependabot, rulesets GitHub, Jenkins | [tp10-devsecops](tp10-devsecops) + dépôt [vuln-app](https://github.com/Amal356/vuln-app) | ✅ |
-| TP11 | GitLab CI/CD | GitLab, runner auto-hébergé, Container Registry, templates de sécurité | `tp11-gitlab-ci` | à venir |
-| TP12 | Supply chain logicielle | Harbor, Syft, Grype, Cosign, SLSA | `tp12-supply-chain` | à venir |
+| TP11 | GitLab CI/CD | GitLab, runner auto-hébergé, Container Registry, templates de sécurité | `tp11-gitlab-ci` | ⏸ partie 1 faite (runner en ligne) ; pipelines bloqués par la vérification d'identité de gitlab.com |
+| TP12 | Software Supply Chain | Harbor, Trivy, Syft, Grype, Cosign (clé et keyless), provenance SLSA, in-toto | [tp12-supply-chain](tp12-supply-chain) | ✅ |
 
 Chaque dossier `tpX-…` contient son README (étapes, commandes, explications, tableaux, réponses aux questions, difficultés) et son dossier `captures/`.
 
@@ -20,7 +20,9 @@ devops-partie4/
 ├── Dockerfile           # image multi-stage non-root (TP7)
 ├── src/ tests/ migrations/ package.json …   # application contact-api (TP8)
 ├── tp9-jenkins/         # README + captures + Jenkinsfile de fin de TP9
-└── tp10-devsecops/      # README + captures
+├── tp10-devsecops/      # README + captures
+├── tp12-supply-chain/   # README + captures + VM Harbor (Vagrant) + verify-before-run.sh
+└── .github/workflows/release.yml   # TP12 : release signée (SBOM, Cosign keyless, provenance SLSA)
 ```
 
 L'application **`contact-api`** (API Express du TP8) est à la **racine** : les quatre TP la font évoluer (Jenkins puis GitLab la construisent, le TP12 signe son image), et Jenkins attend le `Jenkinsfile` à la racine du dépôt.

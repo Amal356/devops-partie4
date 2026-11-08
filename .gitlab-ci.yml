@@ -1,4 +1,6 @@
-# TP11 partie 2 : premier pipeline GitLab de contact-api (fichier de départ + 2 corrections : tests d'intégration exclus, npm audit --omit=dev).
+# TP11 : pipeline GitLab de contact-api (version finale, TODO des parties 3 et 4 complétés).
+# ⚠️ Écrit et relu, mais NON EXÉCUTÉ : gitlab.com refuse de lancer tout pipeline sans vérification
+# d'identité par carte bancaire, même sur un runner auto-hébergé (voir README).
 
 stages:
   - install
@@ -7,25 +9,38 @@ stages:
   - build
   - push
 
+# Un seul pipeline par changement : pipeline de MR si une MR est ouverte, sinon pipeline de branche.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
 default:
   image: node:24-alpine
-  tags: [lab] # les jobs s'exécutent sur VOTRE runner (VM de lab)
-  # TODO (partie 3) : interrompre un pipeline devenu obsolète (interruptible: true)
+  tags: [lab]            # les jobs s'exécutent sur NOTRE runner (VM de lab)
+  interruptible: true    # partie 3 : un nouveau commit annule le pipeline devenu obsolète
 
 variables:
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
 
-# TODO (partie 4) : inclure les templates de sécurité fournis par GitLab
-# include:
-#   - template: Jobs/SAST.gitlab-ci.yml
-#   - template: Jobs/Secret-Detection.gitlab-ci.yml
+# Partie 4 : templates de sécurité fournis par GitLab (gratuits ; rapports JSON en artefacts)
+include:
+  - template: Jobs/SAST.gitlab-ci.yml               # job semgrep-sast
+  - template: Jobs/Secret-Detection.gitlab-ci.yml   # job secret_detection (Gitleaks)
 
 install:
   stage: install
   script:
     - npm ci
-  # TODO (partie 3) : cache de .npm/ avec une clé basée sur package-lock.json (cache:key:files)
-  # TODO (partie 3) : transmettre node_modules/ aux jobs suivants (artifacts, expire_in: 1 hour)
+  cache:                              # partie 3 : réutilisé entre pipelines
+    key:
+      files: [package-lock.json]      # nouvelle clé seulement si les dépendances changent
+    paths: [.npm/]
+  artifacts:                          # partie 3 : transmis aux jobs suivants du même pipeline
+    paths: [node_modules/]
+    expire_in: 1 hour
 
 unit-tests:
   stage: test
@@ -33,7 +48,17 @@ unit-tests:
   script:
     # tests/integration exclus : ils ont besoin d'une base PostgreSQL (lancés à part, TP8)
     - npx vitest run tests --exclude "tests/integration/**" --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml
-  # TODO (partie 3) : publier reports/junit.xml comme rapport JUnit (artifacts:reports:junit, when: always)
+  artifacts:                          # partie 3 : onglet « Tests » du pipeline et de la MR
+    when: always                      # même (surtout) quand un test échoue
+    reports:
+      junit: reports/junit.xml
+
+# Partie 3 : variable CI/CD masquée et protégée (Settings → CI/CD → Variables)
+demo-token:
+  stage: test
+  needs: []
+  script:
+    - echo "longueur: ${#DEMO_TOKEN}"   # jamais la valeur ; vide (0) sur une branche non protégée
 
 npm-audit:
   stage: security
@@ -41,23 +66,29 @@ npm-audit:
   script:
     # --omit=dev : seules les dépendances livrées dans l'image comptent (vitest, eslint… ne partent pas en production)
     - npm audit --omit=dev --audit-level=high
-  # TODO (partie 4) : faut-il autoriser l'échec (allow_failure) ? Justifiez votre choix.
+  # Partie 4 : PAS d'allow_failure. Une dépendance de production vulnérable (high+) doit bloquer
+  # la construction de l'image, comme dans Jenkins au TP10 (zod < 4.6.6 bloqué).
+  allow_failure: false
 
 build-image:
   stage: build
   image: docker:28
   needs: [unit-tests, npm-audit]
   script:
-    # Variables prédéfinies : CI_REGISTRY, CI_REGISTRY_IMAGE, CI_COMMIT_SHORT_SHA, CI_JOB_TOKEN...
     - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
-  # TODO (partie 3) : ne lancer ce job que pour les merge requests et la branche par défaut (rules)
+  rules:                              # partie 3 : MR et branche par défaut uniquement
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 push-image:
   stage: push
   image: docker:28
   needs: [build-image]
   script:
-    # TODO (partie 3) : docker login avec CI_REGISTRY_USER / CI_REGISTRY_PASSWORD (--password-stdin)
-    #                   puis docker push de l'image tagguée avec CI_COMMIT_SHORT_SHA
-    - echo "TODO push"
-  # TODO (partie 3) : uniquement sur la branche par défaut ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH)
+    # Identifiants ÉPHÉMÈRES fournis par GitLab pour ce job : aucun secret à stocker
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+  after_script:
+    - docker logout "$CI_REGISTRY" || true
+  rules:                              # partie 3 : jamais depuis une MR ou une autre branche
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
