@@ -1,0 +1,16 @@
+# TP12 partie 1 : VM dédiée au registre Harbor.
+# Lancement (PowerShell, dans ce dossier) : vagrant up
+Vagrant.configure("2") do |config|
+  config.vm.box      = "bento/ubuntu-24.04"   # box Vagrant disponible (pas encore de box 26.04)
+  config.vm.hostname = "harbor"
+  config.vm.network "private_network", ip: "192.168.56.50"   # même réseau host-only que la VM de lab
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.name   = "tp12-harbor"
+    vb.memory = 4096   # minimum demandé par l'énoncé
+    vb.cpus   = 2
+  end
+
+  # Installe Docker (dépôt officiel) puis Harbor avec le scanner Trivy.
+  config.vm.provision "shell", path: "provision-harbor.sh"
+end

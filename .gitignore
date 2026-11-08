@@ -3,3 +3,7 @@ coverage/
 reports/
 .env
 *.log
+# TP12 : clé privée Cosign et état local de Vagrant (contient une clé SSH privée)
+cosign.key
+*.key
+.vagrant/
